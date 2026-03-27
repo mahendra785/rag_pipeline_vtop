@@ -1,0 +1,57 @@
+# 🔹 Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 🔹 Virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# 🔹 Environment variables
+.env
+.env.*
+
+# 🔹 VS Code / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 🔹 Logs
+*.log
+
+# 🔹 OS files
+.DS_Store
+Thumbs.db
+
+# 🔹 Build / dist
+build/
+dist/
+*.egg-info/
+
+# 🔹 Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# 🔹 SQLite / local DB (if used)
+*.db
+*.sqlite3
+
+# 🔹 Vector DB / embeddings storage (optional - if local)
+chroma_db/
+faiss_index/
+*.pkl
+
+# 🔹 Temporary files
+*.tmp
+*.bak
+
+# 🔹 Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+
+# 🔹 API keys / secrets
+secrets.json
+config.yaml
