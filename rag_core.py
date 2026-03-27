@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import List, Dict, Any
 
 import numpy as np
@@ -116,6 +117,9 @@ def answer_with_llama(
     temperature: float = 0.2,
     max_tokens: int = 512,
 ):
+    if not model_path or not Path(model_path).is_file():
+        raise FileNotFoundError(f"Model file not found: {model_path}")
+
     llm = _get_llm(model_path, n_ctx)
 
     system = (

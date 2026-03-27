@@ -1,4 +1,6 @@
 import io
+from hashlib import sha256
+from pathlib import Path
 import streamlit as st
 from rag_core import (
     load_pdf_pages,
@@ -35,18 +37,43 @@ uploaded = st.file_uploader("Upload PDF", type=["pdf"])
 if "index" not in st.session_state:
     st.session_state.index = None
     st.session_state.chunks = None
+    st.session_state.pages = None
+    st.session_state.doc_signature = None
 
 if uploaded:
-    pdf_bytes = uploaded.read()
-    pages = load_pdf_pages(io.BytesIO(pdf_bytes))
-    if not pages:
-        st.error("No extractable text found in PDF. If this is a scanned PDF, use OCR first.")
-        st.stop()
-    chunks = chunk_pages(pages, chunk_size=chunk_size, overlap=chunk_overlap)
-    index = build_index(chunks)
-    st.session_state.index = index
-    st.session_state.chunks = chunks
-    st.success(f"Loaded {len(pages)} pages, {len(chunks)} chunks.")
+    pdf_bytes = uploaded.getvalue()
+    doc_signature = (
+        sha256(pdf_bytes).hexdigest(),
+        int(chunk_size),
+        int(chunk_overlap),
+    )
+    if st.session_state.doc_signature != doc_signature:
+        try:
+            with st.spinner("Reading PDF and building retrieval index..."):
+                pages = load_pdf_pages(io.BytesIO(pdf_bytes))
+                if not pages:
+                    st.error("No extractable text found in PDF. If this is a scanned PDF, use OCR first.")
+                    st.stop()
+                chunks = chunk_pages(pages, chunk_size=chunk_size, overlap=chunk_overlap)
+                index = build_index(chunks)
+        except Exception as exc:
+            st.error(f"Failed to prepare the document: {exc}")
+            st.stop()
+
+        st.session_state.index = index
+        st.session_state.chunks = chunks
+        st.session_state.pages = pages
+        st.session_state.doc_signature = doc_signature
+
+if st.session_state.index is not None:
+    st.success(
+        f"Loaded {len(st.session_state.pages)} pages, {len(st.session_state.chunks)} chunks."
+    )
+else:
+    st.info("Upload a PDF to build the retrieval index.")
+
+if not Path(model_path).is_file():
+    st.warning("The configured GGUF model file does not exist on this machine. Update the model path before asking a question.")
 
 question = st.text_input("Ask a question about the PDF")
 
@@ -54,25 +81,34 @@ if st.button("Answer", type="primary") and question:
     if st.session_state.index is None:
         st.warning("Please upload a PDF first.")
     else:
-        hits = retrieve(
-            question,
-            st.session_state.index,
-            st.session_state.chunks,
-            top_k=top_k,
-        )
+        try:
+            hits = retrieve(
+                question,
+                st.session_state.index,
+                st.session_state.chunks,
+                top_k=top_k,
+            )
+        except Exception as exc:
+            st.error(f"Retrieval failed: {exc}")
+            st.stop()
 
         if not hits or hits[0]["score"] < min_score:
             st.write("Not found in the document.")
         else:
             context = format_context(hits)
-            answer = answer_with_llama(
-                question=question,
-                context=context,
-                model_path=model_path,
-                n_ctx=int(n_ctx),
-                temperature=float(temperature),
-                max_tokens=int(max_tokens),
-            )
+            try:
+                with st.spinner("Generating grounded answer..."):
+                    answer = answer_with_llama(
+                        question=question,
+                        context=context,
+                        model_path=model_path,
+                        n_ctx=int(n_ctx),
+                        temperature=float(temperature),
+                        max_tokens=int(max_tokens),
+                    )
+            except Exception as exc:
+                st.error(f"Generation failed: {exc}")
+                st.stop()
             st.subheader("Answer")
             st.write(answer)
 
